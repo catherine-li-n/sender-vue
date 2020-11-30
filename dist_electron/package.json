@@ -12,10 +12,14 @@
     "postuninstall": "electron-builder install-app-deps"
   },
   "dependencies": {
+    "axios": "^0.21.0",
     "bootstrap-vue": "^2.19.0",
     "core-js": "^2.6.5",
+    "md5": "^2.3.0",
     "query-lines-reader": "^0.2.3",
-    "vue": "^2.6.10"
+    "readline": "^1.3.0",
+    "vue": "^2.6.10",
+    "xml2js": "^0.4.23"
   },
   "devDependencies": {
     "@vue/cli-plugin-babel": "^3.0.4",

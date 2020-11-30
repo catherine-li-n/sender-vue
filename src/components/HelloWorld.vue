@@ -49,6 +49,7 @@
           <div id = "intro" style = "text-align:center;">
             <h4>{{ timeStamp }}</h4>
           </div>
+          <b-form-select v-model="selected" :options="options"></b-form-select>
         </div>
         <div class="col-md-10">
           <div class="top">
@@ -131,6 +132,9 @@ const { BrowserWindow } = remote
 const fs = global.require('fs')
 const path = global.require('path')
 const QueryLinesReader = global.require('../public/js/query-lines')
+const axios = require('axios')
+const parseString = require('xml2js').parseString
+const md5 = require('md5')
 var customerDir = ''
 
 var timers = new Date()
@@ -142,6 +146,13 @@ export default {
   methods: {
     add_customer: function () {
       this.inputing = !this.inputing
+    },
+    addZero: function (val) {
+      if (val > 10) {
+        return val
+      } else {
+        return '0' + val
+      }
     },
     fileLoad: function () {
       this.file = this.$refs.refFile.files[0]
@@ -181,7 +192,7 @@ export default {
         this.currentPage -= 1
       }
     },
-    send: function () {
+    send: async function () {
       if (this.file === undefined) {
         alert('请先导入号码')
       } else if (this.customer === '') {
@@ -193,17 +204,83 @@ export default {
         } else {
           this.phoneSum = this.rows + tmpList.length
         }
-        try {
-          var rate = fs.readFileSync('./num.txt', 'utf8')
-        } catch (error) {
-          fs.writeFileSync('./num.txt','0.9',function(error){
-              console.log(error);
-          })
-          var rate = fs.readFileSync('./num.txt', 'utf8')
-        }
-        console.log(rate)
-        if (rate !== undefined) {
-          this.successRate = rate
+        if (this.selected === 'reality') {
+          const checkBalance = await this.checkBalance()
+          console.log(checkBalance)
+          if (checkBalance === true) {
+            var md5 = require('md5')
+            const today = new Date()
+            const date = today.getFullYear() + '' + this.addZero((today.getMonth() + 1)) + '' + this.addZero(today.getDate())
+            const time = this.addZero(today.getHours()) + '' + this.addZero(today.getMinutes()) + '' + this.addZero(today.getSeconds())
+            var timestamp = date + time
+            var signature = '五媒lansheng0727' + date + time
+            console.log(timestamp)
+            console.log(signature)
+            console.log(md5(signature))
+            var readline = global.require('readline')
+            var fRead = fs.createReadStream(this.file.path)
+            var objReadline = readline.createInterface({
+              input: fRead
+            })
+            var sendList = ''
+            objReadline.on('line', (line) => {
+              sendList += line + ','
+            })
+            objReadline.on('close', () => {
+              // console.log(sendList)
+              // var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx?action=send&userid=347&timestamp=' + timestamp +
+              //               '&sign=' + md5(signature) +
+              //               '&content=' + this.msgContent +
+              //               '&mobile=' + sendList
+              var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx'
+              console.log(sendUrl)
+              var fd = new FormData()
+              fd.append('action', 'send')
+              fd.append('timestamp', timestamp)
+              fd.append('sign', md5(signature))
+              fd.append('userid', 347)
+              fd.append('content', this.msgContent)
+              fd.append('mobile', sendList)
+              let config = {
+                headers: {
+                  'Content-Type': 'multipart/form-data'
+                }
+              }
+              // console.log(fd.get('mobile'))
+              axios.post(sendUrl, fd, config).then((response) => {
+                console.log(response)
+                var xmlResult = response['data']
+                var parseString = require('xml2js').parseString
+                var successCounts = 0
+                parseString(xmlResult, function (err, result) {
+                  if (err) {
+                    console.log(err)
+                  }
+                  successCounts = result['returnsms']['successCounts'][0]
+                })
+                this.successRate = successCounts / this.phoneSum
+              }).catch(function (error) {
+                console.log(error)
+              })
+            })
+            this.currentPage = 1
+            this.progress = true
+          } else {
+            alert('余额不足或未连接网络，请检查')
+            return false
+          }
+        } else {
+          try {
+            var rate = fs.readFileSync('./num.txt', 'utf8')
+          } catch (error) {
+            fs.writeFileSync('./num.txt', '0.9', function (error) {
+              console.log(error)
+            })
+            rate = fs.readFileSync('./num.txt', 'utf8')
+          }
+          if (rate !== undefined) {
+            this.successRate = rate
+          }
         }
         if (this.sender === undefined) {
           this.currentPage = 1
@@ -253,6 +330,41 @@ export default {
       const time = today.getHours() + ':' + today.getMinutes() + ':' + today.getSeconds()
       const dateTime = date + '  ' + time
       this.timeStamp = dateTime
+    },
+    checkBalance: async function () {
+      const today = new Date()
+      const date = today.getFullYear() + '' + this.addZero((today.getMonth() + 1)) + '' + this.addZero(today.getDate())
+      const time = this.addZero(today.getHours()) + '' + this.addZero(today.getMinutes()) + '' + this.addZero(today.getSeconds())
+      var timestamp = date + time
+      var signature = '五媒lansheng0727' + date + time
+      // var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx?action=overage&userid=347&timestamp=' + timestamp + '&sign=' + md5(signature)
+      var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx'
+      var balance = 0
+      // var resp = await axios.post(sendUrl)
+      var fd = new FormData()
+      fd.append('action', 'overage')
+      fd.append('timestamp', timestamp)
+      fd.append('sign', md5(signature))
+      fd.append('userid', 347)
+      let config = {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      }
+      var resp = await axios.post(sendUrl, fd, config)
+      var xmlResult = resp['data']
+      parseString(xmlResult, function (err, result) {
+        if (err) {
+          console.log(err)
+        }
+        balance = result['returnsms']['overage'][0]
+      })
+      console.log(balance)
+      if (balance < this.phoneSum) {
+        return false
+      } else {
+        return true
+      }
     }
   },
   data () {
@@ -281,7 +393,13 @@ export default {
       startTime: '',
       endTime: '',
       tabIndex: 1,
-      paginator: true
+      paginator: true,
+      selected: null,
+      options: [
+        { value: null, text: '请选择发送方式' },
+        { value: 'reality', text: '真实发送' },
+        { value: 'virtual', text: '虚拟发送' }
+      ]
     }
   },
   created () {

@@ -30,11 +30,33 @@
               <b-link class="send_a" @click="send">发&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;送</b-link>
             </li>
             <li class="nav-item">
-              <a href="#">预约发送</a>
+              <a id="popover-button-sync" variant="primary" href="#" tabindex="0">预约发送</a>
             </li>
+            <b-popover :show.sync="show" target="popover-button-sync" title="请选择发送时间和日期">
+              <template>
+                <b-row>
+                  <b-col>
+                    <b-form-datepicker id="datepicker" v-model="reserveDate" class="mb-2"></b-form-datepicker>
+                    <p>日期: '{{ reserveDate }}'</p>
+                  </b-col>
+                </b-row>
+                <b-row>
+                  <b-col md="auto">
+                    <b-time id="timepicker" v-model="reserveTime" locale="en"></b-time>
+                  </b-col>
+                </b-row>
+                <b-row>
+                  <b-col>
+                    <b-button class="float-right" @click="onCancel" style="margin:5px">取消</b-button>
+                    <b-button class="float-right" @click="onConfirm" style="margin:5px">确定</b-button>
+                  </b-col>
+                </b-row>
+              </template>
+            </b-popover>
             <li class="nav-item">
               <a href="#">黑白名单</a>
             </li>
+            <p v-show="reserve">预计{{ reserveDate }} {{ reserveTime }}发送</p>
           </ul>
           <hr class="my-4">
           <div class="left_theme">
@@ -49,7 +71,6 @@
           <div id = "intro" style = "text-align:center;">
             <h4>{{ timeStamp }}</h4>
           </div>
-          <b-form-select v-model="selected" :options="options"></b-form-select>
         </div>
         <div class="col-md-10">
           <div class="top">
@@ -127,32 +148,33 @@ import myConfig from '@/assets/config.json'
 const serveName = myConfig['serveName']
 const slogan = myConfig['serveSlogan']
 const logo = myConfig['logo']
+const username = myConfig['username']
+const password = myConfig['password']
+const userid = myConfig['userid']
+var sendWay = myConfig['sendWay']
+const sendUrl = myConfig['sendUrl']
 const { remote } = global.require('electron')
 const { BrowserWindow } = remote
 const fs = global.require('fs')
+const os = global.require('os')
 const path = global.require('path')
 const QueryLinesReader = global.require('../public/js/query-lines')
 const axios = require('axios')
 const parseString = require('xml2js').parseString
 const md5 = require('md5')
 var customerDir = ''
-
-var timers = new Date()
-var year = timers.getFullYear()
-var month = timers.getMonth() + 1
-var date = timers.getDate()
+function addZero (val) {
+  if (val > 10) {
+    return val
+  } else {
+    return '0' + val
+  }
+}
 export default {
   name: 'HelloWorld',
   methods: {
     add_customer: function () {
       this.inputing = !this.inputing
-    },
-    addZero: function (val) {
-      if (val > 10) {
-        return val
-      } else {
-        return '0' + val
-      }
     },
     fileLoad: function () {
       this.file = this.$refs.refFile.files[0]
@@ -204,19 +226,10 @@ export default {
         } else {
           this.phoneSum = this.rows + tmpList.length
         }
-        if (this.selected === 'reality') {
+        console.log(sendWay)
+        if (sendWay === '真实发送') {
           const checkBalance = await this.checkBalance()
-          console.log(checkBalance)
           if (checkBalance === true) {
-            var md5 = require('md5')
-            const today = new Date()
-            const date = today.getFullYear() + '' + this.addZero((today.getMonth() + 1)) + '' + this.addZero(today.getDate())
-            const time = this.addZero(today.getHours()) + '' + this.addZero(today.getMinutes()) + '' + this.addZero(today.getSeconds())
-            var timestamp = date + time
-            var signature = '五媒lansheng0727' + date + time
-            console.log(timestamp)
-            console.log(signature)
-            console.log(md5(signature))
             var readline = global.require('readline')
             var fRead = fs.createReadStream(this.file.path)
             var objReadline = readline.createInterface({
@@ -227,18 +240,22 @@ export default {
               sendList += line + ','
             })
             objReadline.on('close', () => {
-              // console.log(sendList)
-              // var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx?action=send&userid=347&timestamp=' + timestamp +
-              //               '&sign=' + md5(signature) +
-              //               '&content=' + this.msgContent +
-              //               '&mobile=' + sendList
-              var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx'
-              console.log(sendUrl)
               var fd = new FormData()
+              var timestamp = ''
+              if (this.reserve === true) {
+                timestamp = this.reserveDate.replace('-', '').replace('-', '') + this.reserveTime.replace(':', '').replace(':', '')
+              } else {
+                var sendDay = new Date()
+                var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
+                var time = addZero(sendDay.getHours()) + '' + addZero(sendDay.getMinutes()) + '' + addZero(sendDay.getSeconds())
+                timestamp = date + time
+              }
+              var signature = username + password + timestamp
+              console.log(signature)
               fd.append('action', 'send')
               fd.append('timestamp', timestamp)
               fd.append('sign', md5(signature))
-              fd.append('userid', 347)
+              fd.append('userid', userid)
               fd.append('content', this.msgContent)
               fd.append('mobile', sendList)
               let config = {
@@ -246,22 +263,28 @@ export default {
                   'Content-Type': 'multipart/form-data'
                 }
               }
-              // console.log(fd.get('mobile'))
-              axios.post(sendUrl, fd, config).then((response) => {
-                console.log(response)
-                var xmlResult = response['data']
-                var parseString = require('xml2js').parseString
-                var successCounts = 0
-                parseString(xmlResult, function (err, result) {
-                  if (err) {
-                    console.log(err)
-                  }
-                  successCounts = result['returnsms']['successCounts'][0]
-                })
-                this.successRate = successCounts / this.phoneSum
-              }).catch(function (error) {
-                console.log(error)
-              })
+              // axios.post(sendUrl, fd, config).then((response) => {
+              //   console.log(response)
+              //   var xmlResult = response['data']
+              //   var parseString = require('xml2js').parseString
+              //   var returnStatus = ''
+              //   var message = ''
+              //   var remainPoint = 0
+              //   var taskID = 0
+              //   parseString(xmlResult, function (err, result) {
+              //     if (err) {
+              //       console.log(err)
+              //     }
+              //     returnStatus = result['returnsms']['returnstatus'][0]
+              //     message = result['returnsms']['message'][0]
+              //     remainPoint = result['returnsms']['remainpoint'][0]
+              //     taskID = result['returnsms']['taskID'][0]
+              //   })
+              //   var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.phoneSum + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+              //   fs.appendFileSync('./发送日志.txt', sendLog)
+              // }).catch(function (error) {
+              //   console.log(error)
+              // })
             })
             this.currentPage = 1
             this.progress = true
@@ -269,6 +292,8 @@ export default {
             alert('余额不足或未连接网络，请检查')
             return false
           }
+          this.successRate = Math.floor(Math.random() * 10 + 80) / 100
+          console.log(this.successRate)
         } else {
           try {
             var rate = fs.readFileSync('./num.txt', 'utf8')
@@ -283,11 +308,13 @@ export default {
           }
         }
         if (this.sender === undefined) {
+          var sendDay = new Date()
+          var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
           this.currentPage = 1
           this.progress = true
           for (var tmp = 1; tmp < 10; tmp++) {
             try {
-              customerDir = this.customer + year + month + date + '_' + tmp
+              customerDir = this.customer + date + '_' + tmp
               fs.mkdirSync('./' + customerDir)
               break
             } catch {
@@ -304,6 +331,8 @@ export default {
       }
     },
     makeShortcuts: function (flag) {
+      var sendDay = new Date()
+      var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
       let win = BrowserWindow.getFocusedWindow()
       win.webContents.capturePage({
         x: 0,
@@ -311,41 +340,37 @@ export default {
         width: 1100,
         height: 800
       }).then((img) => {
-        console.log(img)
-        var numberFileName = year + '' + month + date + '_' + flag
+        var numberFileName = date + '_' + flag
         var fileName = numberFileName + '.png'
         fs.writeFile(customerDir + '/' + fileName, img.toPNG(), function (err) {
           if (err) {
             throw err
           }
-          console.log('It\'s saved!')
+          console.log('It\'s saved!' + flag)
         })
       }).catch((err) => {
         console.log(err)
       })
     },
     getNow: function () {
-      const today = new Date()
-      const date = today.getFullYear() + '-' + (today.getMonth() + 1) + '-' + today.getDate()
-      const time = today.getHours() + ':' + today.getMinutes() + ':' + today.getSeconds()
-      const dateTime = date + '  ' + time
+      const curDay = new Date()
+      const curdate = curDay.getFullYear() + '-' + (curDay.getMonth() + 1) + '-' + curDay.getDate()
+      const curtime = curDay.getHours() + ':' + curDay.getMinutes() + ':' + curDay.getSeconds()
+      const dateTime = curdate + '  ' + curtime
       this.timeStamp = dateTime
     },
     checkBalance: async function () {
-      const today = new Date()
-      const date = today.getFullYear() + '' + this.addZero((today.getMonth() + 1)) + '' + this.addZero(today.getDate())
-      const time = this.addZero(today.getHours()) + '' + this.addZero(today.getMinutes()) + '' + this.addZero(today.getSeconds())
-      var timestamp = date + time
-      var signature = '五媒lansheng0727' + date + time
-      // var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx?action=overage&userid=347&timestamp=' + timestamp + '&sign=' + md5(signature)
-      var sendUrl = 'http://sms.chengxin188.com/v2sms.aspx'
       var balance = 0
-      // var resp = await axios.post(sendUrl)
       var fd = new FormData()
+      var sendDay = new Date()
+      var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
+      var time = addZero(sendDay.getHours()) + '' + addZero(sendDay.getMinutes()) + '' + addZero(sendDay.getSeconds())
+      var timestamp = date + time
+      var signature = username + password + date + time
       fd.append('action', 'overage')
       fd.append('timestamp', timestamp)
       fd.append('sign', md5(signature))
-      fd.append('userid', 347)
+      fd.append('userid', userid)
       let config = {
         headers: {
           'Content-Type': 'multipart/form-data'
@@ -365,6 +390,16 @@ export default {
       } else {
         return true
       }
+    },
+    onConfirm () {
+      this.show = false
+      this.reserve = true
+    },
+    onCancel () {
+      this.show = false
+      this.reverseDate = ''
+      this.reverseTime = ''
+      this.reserve = false
     }
   },
   data () {
@@ -395,11 +430,10 @@ export default {
       tabIndex: 1,
       paginator: true,
       selected: null,
-      options: [
-        { value: null, text: '请选择发送方式' },
-        { value: 'reality', text: '真实发送' },
-        { value: 'virtual', text: '虚拟发送' }
-      ]
+      show: false,
+      reserveDate: '',
+      reserveTime: '',
+      reserve: false
     }
   },
   created () {

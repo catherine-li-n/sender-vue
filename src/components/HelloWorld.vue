@@ -263,28 +263,26 @@ export default {
                   'Content-Type': 'multipart/form-data'
                 }
               }
-              // axios.post(sendUrl, fd, config).then((response) => {
-              //   console.log(response)
-              //   var xmlResult = response['data']
-              //   var parseString = require('xml2js').parseString
-              //   var returnStatus = ''
-              //   var message = ''
-              //   var remainPoint = 0
-              //   var taskID = 0
-              //   parseString(xmlResult, function (err, result) {
-              //     if (err) {
-              //       console.log(err)
-              //     }
-              //     returnStatus = result['returnsms']['returnstatus'][0]
-              //     message = result['returnsms']['message'][0]
-              //     remainPoint = result['returnsms']['remainpoint'][0]
-              //     taskID = result['returnsms']['taskID'][0]
-              //   })
-              //   var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.phoneSum + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
-              //   fs.appendFileSync('./发送日志.txt', sendLog)
-              // }).catch(function (error) {
-              //   console.log(error)
-              // })
+              axios.post(sendUrl, fd, config).then((response) => {
+                console.log(response)
+                var xmlResult = response['data']
+                var parseString = require('xml2js').parseString
+                var message = ''
+                var remainPoint = 0
+                var taskID = 0
+                parseString(xmlResult, function (err, result) {
+                  if (err) {
+                    console.log(err)
+                  }
+                  message = result['returnsms']['message'][0]
+                  remainPoint = result['returnsms']['remainpoint'][0]
+                  taskID = result['returnsms']['taskID'][0]
+                })
+                var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.phoneSum + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                fs.appendFileSync('./发送日志.txt', sendLog)
+              }).catch(function (error) {
+                console.log(error)
+              })
             })
             this.currentPage = 1
             this.progress = true

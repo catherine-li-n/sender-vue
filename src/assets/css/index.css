@@ -70,8 +70,15 @@ textarea {
 	width: 300px;
 	z-index: 1000;
 	position: absolute;
-	margin-left: 70%;
+	margin-left: 50%;
 	margin-top: 55px;
+}
+.send-config{
+	width: 400px;
+	z-index: 2000;
+}
+:focus {
+    outline: none;
 }
 .input input{
 	width: 230px;

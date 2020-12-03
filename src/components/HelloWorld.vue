@@ -1,17 +1,25 @@
 <template>
   <div>
     <div class="header">
-      <div class="logo">
-        <img src="../assets/img/logo.png"/>
-      </div>
-      <div class="name">
-        <span style="float:left" @click="add_customer">{{ serveName }}正在为&nbsp;</span>
-        <span class="header-title" @click="add_customer">{{ customer }}</span>
-        <span @click="add_customer">&nbsp;服务</span>
-      </div>
-      <div v-show="inputing" class="input">
-        <input v-model="customer" placeholder="请输入服务客户名称..." id="cont">
-        <button class="btn btn-primary submit" @click="add_customer">确定</button>
+      <div class="row">
+        <div class="col-md-5">
+          <div class="logo">
+            <a class="m-1" href="#">
+              <img src="../assets/img/logo.png"/>
+            </a>
+          </div>
+        </div>
+        <div class="col-md-7">
+          <div class="name">
+            <span style="float:left" v-b-toggle.collapse>{{ serveName }}正在为&nbsp;</span>
+            <span class="header-title" v-b-toggle.collapse>{{ customer }}</span>
+            <span v-b-toggle.collapse >&nbsp;服务</span>
+          </div>
+          <b-collapse id="collapse" class="input">
+            <input v-model="customer" placeholder="请输入服务客户名称..." id="cont">
+            <button class="btn btn-primary submit" v-b-toggle.collapse-4>确定</button>
+          </b-collapse>
+        </div>
       </div>
     </div>
     <div class="container-fluid main">
@@ -68,8 +76,8 @@
             <img src="../assets/img/3.png"/>
             <img src="../assets/img/1.png">
           </div>
-          <div id = "intro" style = "text-align:center;">
-            <h4>{{ timeStamp }}</h4>
+          <div style = "text-align:center;">
+            <h5>{{ timeStamp }}</h5>
           </div>
         </div>
         <div class="col-md-10">
@@ -113,9 +121,28 @@
                       未成功发送&nbsp;<span style="color: grey">{{ phoneSum - Math.ceil(phoneSum * successRate) }}&nbsp;</span>条。
                     </b-card-text>
                   </b-tab>
-                  <b-tab title="彩信"><h2>开发中，暂未开放</h2></b-tab>
-                  <b-tab title="视信"><h2>开发中，暂未开放</h2></b-tab>
-                  <b-tab title="长短信"><h2>开发中，暂未开放</h2></b-tab>
+                  <!-- <b-tab title="彩信">
+                    <div class="tab-content">
+                      <b-row>
+                        <b-col sm="8">
+                          <b-form-textarea
+                            v-model="msgContent"
+                            class="test_phone"
+                            placeholder="请在此输入内容..."
+                            rows="12"
+                          ></b-form-textarea>
+                        </b-col>
+                        <b-col sm="4">
+                          <b-form-textarea
+                            v-model="testList"
+                            class="test_phone"
+                            placeholder="请输入测试号码,号码之间用回车间隔..."
+                            rows="12"
+                          ></b-form-textarea>
+                        </b-col>
+                      </b-row>
+                    </div>
+                  </b-tab> -->
                 </b-tabs>
                 <div v-show="paginator" id="main-bottom" style="background: #fff; border-bottom: 1px solid #fff;">
                   <table class="exceltable" id="mytable" style="width: 100%;" cellpadding="0" cellspacing="1">
@@ -144,7 +171,8 @@
 </template>
 
 <script>
-import myConfig from '@/assets/config.json'
+// import myConfig from '@/assets/config.json'
+let myConfig = global.require('../public/config.json')
 const serveName = myConfig['serveName']
 const slogan = myConfig['serveSlogan']
 const logo = myConfig['logo']
@@ -264,7 +292,6 @@ export default {
                 }
               }
               axios.post(sendUrl, fd, config).then((response) => {
-                console.log(response)
                 var xmlResult = response['data']
                 var parseString = require('xml2js').parseString
                 var message = ''
@@ -278,11 +305,39 @@ export default {
                   remainPoint = result['returnsms']['remainpoint'][0]
                   taskID = result['returnsms']['taskID'][0]
                 })
-                var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.phoneSum + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
                 fs.appendFileSync('./发送日志.txt', sendLog)
               }).catch(function (error) {
                 console.log(error)
               })
+              var newTestString = tmpList.join(',')
+              console.log(newTestString)
+              var testfd = new FormData()
+              testfd.append('action', 'send')
+              testfd.append('timestamp', timestamp)
+              testfd.append('sign', md5(signature))
+              testfd.append('userid', userid)
+              testfd.append('content', this.msgContent)
+              testfd.append('mobile', newTestString)
+              if (tmpList.length > 0) {
+                axios.post(sendUrl, testfd, config).then((response) => {
+                  var xmlResult = response['data']
+                  var parseString = require('xml2js').parseString
+                  var message = ''
+                  var remainPoint = 0
+                  var taskID = 0
+                  parseString(xmlResult, function (err, result) {
+                    if (err) {
+                      console.log(err)
+                    }
+                    message = result['returnsms']['message'][0]
+                    remainPoint = result['returnsms']['remainpoint'][0]
+                    taskID = result['returnsms']['taskID'][0]
+                  })
+                  var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送测试号共计：' + tmpList.length + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                  fs.appendFileSync('./发送日志.txt', sendLog)
+                })
+              }
             })
             this.currentPage = 1
             this.progress = true
@@ -454,11 +509,11 @@ export default {
       }
     },
     progressValue: function () {
-      if (this.progressValue === 100) {
+      if (this.progressValue === 100 && this.progress === true) {
         this.endTime = this.timeStamp
         this.timer = setTimeout(() => {
           this.makeShortcuts(4)
-        }, 400)
+        }, 500)
         this.timer = setTimeout(() => {
           if (this.progress) {
             this.tabIndex = 1

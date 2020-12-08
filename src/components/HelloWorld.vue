@@ -17,7 +17,7 @@
           </div>
           <b-collapse id="collapse" class="input">
             <input v-model="customer" placeholder="请输入服务客户名称..." id="cont">
-            <button class="btn btn-primary submit" v-b-toggle.collapse-4>确定</button>
+            <button class="btn btn-primary submit" v-b-toggle.collapse>确定</button>
           </b-collapse>
         </div>
       </div>
@@ -45,7 +45,7 @@
                 <b-row>
                   <b-col>
                     <b-form-datepicker id="datepicker" v-model="reserveDate" class="mb-2"></b-form-datepicker>
-                    <p>日期: '{{ reserveDate }}'</p>
+                    <h5>日期: '{{ reserveDate }}'</h5>
                   </b-col>
                 </b-row>
                 <b-row>
@@ -121,14 +121,14 @@
                       未成功发送&nbsp;<span style="color: grey">{{ phoneSum - Math.ceil(phoneSum * successRate) }}&nbsp;</span>条。
                     </b-card-text>
                   </b-tab>
-                  <!-- <b-tab title="彩信">
+                  <b-tab title="彩信">
                     <div class="tab-content">
                       <b-row>
                         <b-col sm="8">
                           <b-form-textarea
                             v-model="msgContent"
                             class="test_phone"
-                            placeholder="请在此输入内容..."
+                            placeholder="请在此输入模板编号"
                             rows="12"
                           ></b-form-textarea>
                         </b-col>
@@ -142,7 +142,90 @@
                         </b-col>
                       </b-row>
                     </div>
-                  </b-tab> -->
+                  </b-tab>
+                  <b-tab title="设置">
+                    <h2>设置</h2>
+                    <b-form @submit="onSubmit">
+                    <b-row>
+                      <b-col sm="6">
+                        <div style="font-size: 15px">
+                          <b-form-group id="config-group" label="用户名（短信/闪信）" label-for="input-un">
+                            <b-form-input
+                              id="input-un"
+                              v-model="form.username"
+                              required
+                              placeholder="请输入短信/闪信发送账号用户名"
+                            ></b-form-input>
+                          </b-form-group>
+                          <b-form-group id="config-group" label="密码（短信/闪信）" label-for="input-pw">
+                            <b-form-input
+                              id="input-un"
+                              v-model="form.password"
+                              required
+                              placeholder="请输入短信/闪信发送账号密码"
+                            ></b-form-input>
+                          </b-form-group>
+                          <b-form-group id="config-group" label="用户id" label-for="input-userid">
+                            <b-form-input
+                              id="input-userid"
+                              v-model="form.userid"
+                              required
+                              placeholder="请输入短信/闪信发送账号用户id"
+                            ></b-form-input>
+                          </b-form-group>
+                        </div>
+                      </b-col>
+                      <b-col sm="6">
+                        <div style="font-size: 15px">
+                          <b-form-group id="config-group" label="用户名（视信）" label-for="input-un">
+                            <b-form-input
+                              id="input-un"
+                              v-model="form.nameSx"
+                              placeholder="请输入视信发送账号用户名"
+                            ></b-form-input>
+                          </b-form-group>
+                          <b-form-group id="config-group" label="密码（视信）" label-for="input-pw">
+                            <b-form-input
+                              id="input-un"
+                              v-model="form.passwordSx"
+                              placeholder="请输入视信发送账号密码"
+                            ></b-form-input>
+                          </b-form-group>
+                          <b-form-group id="config-group" label="用户id（视信）" label-for="input-userid">
+                            <b-form-input
+                              id="input-userid"
+                              v-model="form.useridSx"
+                              placeholder="请输入视信发送账号用户id"
+                            ></b-form-input>
+                          </b-form-group>
+                        </div>
+                      </b-col>
+                    </b-row>
+                    <b-row>
+                      <b-col sm="8">
+                        <div style="font-size: 20px">
+                          <b-form-group id="input-group-3" label="发送方式" label-for="input-sendWay">
+                            <b-form-select
+                              id="input-sendWay"
+                              v-model="form.sendWay"
+                              :options="sendWayChoice"
+                              required
+                            ></b-form-select>
+                          </b-form-group>
+                          <b-form-group id="config-group" label="发送平台url" label-for="input-sendUrl">
+                            <b-form-input
+                              id="input-sendUrl"
+                              v-model="form.sendUrl"
+                              required
+                              placeholder="请输入发送平台url"
+                            ></b-form-input>
+                          </b-form-group>
+                        </div>
+                      </b-col>
+                    </b-row>
+                    <b-button style="float:right; font-size: 16px; margin-right: 10%;" type="submit" variant="primary">保存</b-button>
+                    </b-form>
+                  </b-tab>
                 </b-tabs>
                 <div v-show="paginator" id="main-bottom" style="background: #fff; border-bottom: 1px solid #fff;">
                   <table class="exceltable" id="mytable" style="width: 100%;" cellpadding="0" cellspacing="1">
@@ -156,6 +239,7 @@
                   <div>
                     <b-pagination v-model="currentPage" pills :total-rows="rows" :per-page="pageSize" size="lg"></b-pagination>
                   </div>
+                  <span style="float: right; margin-right: 6%;">共导入 <b>{{rows}}</b> 条数据</span>
                 </div>
                 <div class="bottom">
                   <b-progress v-show="progress" height="30px" :value="progressValue" variant="success" striped :animated="animate"></b-progress>
@@ -172,13 +256,17 @@
 
 <script>
 // import myConfig from '@/assets/config.json'
+import baseConfig from '@/assets/baseConfig.json'
 let myConfig = global.require('../public/config.json')
-const serveName = myConfig['serveName']
-const slogan = myConfig['serveSlogan']
-const logo = myConfig['logo']
+const serveName = baseConfig['serveName']
+const slogan = baseConfig['serveSlogan']
+const logo = baseConfig['logo']
 const username = myConfig['username']
 const password = myConfig['password']
 const userid = myConfig['userid']
+const nameSx = myConfig['nameSx']
+const passwordSx = myConfig['passwordSx']
+const useridSx = myConfig['useridSx']
 var sendWay = myConfig['sendWay']
 const sendUrl = myConfig['sendUrl']
 const { remote } = global.require('electron')
@@ -205,14 +293,16 @@ export default {
       this.inputing = !this.inputing
     },
     fileLoad: function () {
-      this.file = this.$refs.refFile.files[0]
-      let queryLinesReader = new QueryLinesReader(path.resolve(this.file.path))
-      queryLinesReader.getTotal().then(totalRes => {
-        this.rows = totalRes
-        this.pageNum = Math.ceil(totalRes / this.pageSize)
-      })
-      this.currentPage = 1
-      this.getPage()
+      if (this.$refs.refFile.files[0] !== undefined) {
+        this.file = this.$refs.refFile.files[0]
+        let queryLinesReader = new QueryLinesReader(path.resolve(this.file.path))
+        queryLinesReader.getTotal().then(totalRes => {
+          this.rows = totalRes
+          this.pageNum = Math.ceil(totalRes / this.pageSize)
+        })
+        this.currentPage = 1
+        this.getPage()
+      }
     },
     getPage: function () {
       let queryLinesReader = new QueryLinesReader(path.resolve(this.file.path))
@@ -256,76 +346,51 @@ export default {
         }
         console.log(sendWay)
         if (sendWay === '真实发送') {
-          const checkBalance = await this.checkBalance()
-          if (checkBalance === true) {
-            var readline = global.require('readline')
-            var fRead = fs.createReadStream(this.file.path)
-            var objReadline = readline.createInterface({
-              input: fRead
-            })
-            var sendList = ''
-            objReadline.on('line', (line) => {
-              sendList += line + ','
-            })
-            objReadline.on('close', () => {
-              var fd = new FormData()
-              var timestamp = ''
-              if (this.reserve === true) {
-                timestamp = this.reserveDate.replace('-', '').replace('-', '') + this.reserveTime.replace(':', '').replace(':', '')
-              } else {
+          if (username === '') {
+            alert('真实发送需要配置发送用户名')
+          } else {
+            const checkBalance = await this.checkBalance()
+            if (checkBalance === true) {
+              var readline = global.require('readline')
+              var fRead = fs.createReadStream(this.file.path)
+              var objReadline = readline.createInterface({
+                input: fRead
+              })
+              var sendList = ''
+              objReadline.on('line', (line) => {
+                sendList += line + ','
+              })
+              objReadline.on('close', () => {
+                var fd = new FormData()
+                var timestamp = ''
                 var sendDay = new Date()
                 var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
                 var time = addZero(sendDay.getHours()) + '' + addZero(sendDay.getMinutes()) + '' + addZero(sendDay.getSeconds())
                 timestamp = date + time
-              }
-              var signature = username + password + timestamp
-              console.log(signature)
-              fd.append('action', 'send')
-              fd.append('timestamp', timestamp)
-              fd.append('sign', md5(signature))
-              fd.append('userid', userid)
-              fd.append('content', this.msgContent)
-              fd.append('mobile', sendList)
-              let config = {
-                headers: {
-                  'Content-Type': 'multipart/form-data'
+                var signature = username + password + timestamp
+                console.log(signature)
+                if (this.reserve === true) {
+                  console.log(this.reserveDate + ' ' + this.reserveTime)
+                  fd.append('sendTime', this.reserveDate + ' ' + this.reserveTime)
                 }
-              }
-              axios.post(sendUrl, fd, config).then((response) => {
-                var xmlResult = response['data']
-                var parseString = require('xml2js').parseString
-                var message = ''
-                var remainPoint = 0
-                var taskID = 0
-                parseString(xmlResult, function (err, result) {
-                  if (err) {
-                    console.log(err)
+                fd.append('action', 'send')
+                fd.append('timestamp', timestamp)
+                fd.append('sign', md5(signature))
+                fd.append('userid', userid)
+                fd.append('content', this.msgContent)
+                fd.append('mobile', sendList)
+                let config = {
+                  headers: {
+                    'Content-Type': 'multipart/form-data'
                   }
-                  message = result['returnsms']['message'][0]
-                  remainPoint = result['returnsms']['remainpoint'][0]
-                  taskID = result['returnsms']['taskID'][0]
-                })
-                var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
-                fs.appendFileSync('./发送日志.txt', sendLog)
-              }).catch(function (error) {
-                console.log(error)
-              })
-              var newTestString = tmpList.join(',')
-              console.log(newTestString)
-              var testfd = new FormData()
-              testfd.append('action', 'send')
-              testfd.append('timestamp', timestamp)
-              testfd.append('sign', md5(signature))
-              testfd.append('userid', userid)
-              testfd.append('content', this.msgContent)
-              testfd.append('mobile', newTestString)
-              if (tmpList.length > 0) {
-                axios.post(sendUrl, testfd, config).then((response) => {
+                }
+                axios.post(sendUrl, fd, config).then((response) => {
                   var xmlResult = response['data']
                   var parseString = require('xml2js').parseString
                   var message = ''
                   var remainPoint = 0
                   var taskID = 0
+                  var sendLog = ''
                   parseString(xmlResult, function (err, result) {
                     if (err) {
                       console.log(err)
@@ -334,19 +399,53 @@ export default {
                     remainPoint = result['returnsms']['remainpoint'][0]
                     taskID = result['returnsms']['taskID'][0]
                   })
-                  var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送测试号共计：' + tmpList.length + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                  if (this.reserve === true) {
+                    sendLog = '[' + message + ']' + this.timeStamp + '(预计发送时间' + this.reserveDate + ' ' + this.reserveTime + ')-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                  } else {
+                    sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                  }
                   fs.appendFileSync('./发送日志.txt', sendLog)
+                }).catch(function (error) {
+                  console.log(error)
                 })
-              }
-            })
-            this.currentPage = 1
-            this.progress = true
-          } else {
-            alert('余额不足或未连接网络，请检查')
-            return false
+                if (tmpList.length > 1) {
+                  var newTestString = tmpList.join(',')
+                  console.log(newTestString)
+                  var testfd = new FormData()
+                  testfd.append('action', 'send')
+                  testfd.append('timestamp', timestamp)
+                  testfd.append('sign', md5(signature))
+                  testfd.append('userid', userid)
+                  testfd.append('content', this.msgContent)
+                  testfd.append('mobile', newTestString)
+                  axios.post(sendUrl, testfd, config).then((response) => {
+                    var xmlResult = response['data']
+                    var parseString = require('xml2js').parseString
+                    var message = ''
+                    var remainPoint = 0
+                    var taskID = 0
+                    parseString(xmlResult, function (err, result) {
+                      if (err) {
+                        console.log(err)
+                      }
+                      message = result['returnsms']['message'][0]
+                      remainPoint = result['returnsms']['remainpoint'][0]
+                      taskID = result['returnsms']['taskID'][0]
+                    })
+                    var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送测试号共计：' + tmpList.length + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                    fs.appendFileSync('./发送日志.txt', sendLog)
+                  })
+                }
+              })
+              this.currentPage = 1
+              this.progress = true
+            } else {
+              alert('余额不足或未连接网络，请检查')
+              return false
+            }
+            this.successRate = Math.floor(Math.random() * 10 + 80) / 100
+            console.log(this.successRate)
           }
-          this.successRate = Math.floor(Math.random() * 10 + 80) / 100
-          console.log(this.successRate)
         } else {
           try {
             var rate = fs.readFileSync('./num.txt', 'utf8')
@@ -391,7 +490,7 @@ export default {
         x: 0,
         y: 0,
         width: 1100,
-        height: 800
+        height: 820
       }).then((img) => {
         var numberFileName = date + '_' + flag
         var fileName = numberFileName + '.png'
@@ -453,6 +552,11 @@ export default {
       this.reverseDate = ''
       this.reverseTime = ''
       this.reserve = false
+    },
+    onSubmit (evt) {
+      evt.preventDefault()
+      alert('保存成功，程序即将重启')
+      fs.writeFileSync('./public/config.json', JSON.stringify(this.form))
     }
   },
   data () {
@@ -486,7 +590,18 @@ export default {
       show: false,
       reserveDate: '',
       reserveTime: '',
-      reserve: false
+      reserve: false,
+      form: {
+        username: username,
+        password: password,
+        userid: userid,
+        nameSx: nameSx,
+        passwordSx: passwordSx,
+        useridSx: useridSx,
+        sendUrl: sendUrl,
+        sendWay: sendWay
+      },
+      sendWayChoice: ['真实发送', '虚拟发送']
     }
   },
   created () {
@@ -511,22 +626,26 @@ export default {
     progressValue: function () {
       if (this.progressValue === 100 && this.progress === true) {
         this.endTime = this.timeStamp
+        var waitTime = this.rows / 56
+        if (waitTime < 600) {
+          waitTime = 600
+        }
         this.timer = setTimeout(() => {
           this.makeShortcuts(4)
-        }, 500)
+        }, waitTime)
         this.timer = setTimeout(() => {
           if (this.progress) {
             this.tabIndex = 1
           }
           this.progress = false
-        }, 1000)
+        }, waitTime + 1000)
         this.timer = setTimeout(() => {
           this.makeShortcuts(5)
-        }, 2000)
+        }, waitTime + 2000)
       }
     },
     tabIndex: function () {
-      if (this.tabIndex === 1) {
+      if (this.tabIndex === 1 || this.tabIndex === 3) {
         this.paginator = false
       } else {
         this.paginator = true

@@ -273,4 +273,10 @@ textarea {
 .bottom {
 	margin-top: 10px;
 }
-
+.card-header{
+	padding: .75rem 1.25rem 0;
+	border-bottom: 0px;
+}
+.popover-header{
+	font-size: 1.5rem;
+}

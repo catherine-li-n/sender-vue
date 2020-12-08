@@ -1,10 +1,1 @@
-{
-    "serveName": "揽胜传媒",
-    "serveSlogan": "专注定向价值广告传播",
-    "icon": "",
-    "username": "五媒",
-    "password": "lansheng0727",
-    "userid": "347",
-    "sendWay": "虚拟发送",
-    "sendUrl": "http://sms.chengxin188.com/v2sms.aspx"
-}
+{"username":"五媒","password":"lansheng0727","userid":"347","nameSx":"123","passwordSx":"2222","useridSx":"123","sendUrl":"http://sms.chengxin188.com/v2sms.aspx","sendWay":"真实发送"}

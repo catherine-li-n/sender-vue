@@ -61,9 +61,9 @@
                 </b-row>
               </template>
             </b-popover>
-            <li class="nav-item">
+            <!-- <li class="nav-item">
               <a href="#">黑白名单</a>
-            </li>
+            </li> -->
             <p v-show="reserve">预计{{ reserveDate }} {{ reserveTime }}发送</p>
           </ul>
           <hr class="my-4">
@@ -111,9 +111,12 @@
                     <b-card-text style="font-size: 25px; margin: 60px">
                       <span>{{ serveName }}</span>于<strong>{{ startTime }}</strong>到<strong>{{ endTime }}</strong>为
                       <br>
-                      "<strong class="message">{{ customer }}</strong>"服务,群发短信:
+                      "<strong class="message">{{ customer }}</strong>"服务,群发<b v-if="sendType==='短信'">短信</b><b v-if="sendType==='视信'">视信</b>:
                       <br>
-                      <span>"</span><span style="color: grey">{{ msgContent }}</span><span>"</span>
+                      <span>"</span>
+                      <span style="color: grey" v-if="sendType==='短信'">{{ msgContent }}</span>
+                      <span style="color: grey" v-if="sendType==='视信'">{{ templateCode }}</span>
+                      <span>"</span>
                     </b-card-text>
                     <b-card-text style="font-size: 20px; margin: 40px">
                       总发送:&nbsp;<span class="message">{{ phoneSum }}&nbsp;</span>条,
@@ -126,7 +129,7 @@
                       <b-row>
                         <b-col sm="8">
                           <b-form-textarea
-                            v-model="msgContent"
+                            v-model="templateCode"
                             class="test_phone"
                             placeholder="请在此输入模板编号"
                             rows="12"
@@ -279,8 +282,9 @@ const axios = require('axios')
 const parseString = require('xml2js').parseString
 const md5 = require('md5')
 var customerDir = ''
+var readline = global.require('readline')
 function addZero (val) {
-  if (val > 10) {
+  if (val >= 10) {
     return val
   } else {
     return '0' + val
@@ -338,6 +342,11 @@ export default {
       } else if (this.customer === '') {
         alert('请先输入服务客户名称')
       } else {
+        if (this.tabIndex === 2) {
+          this.sendType = '视信'
+        } else if (this.tabIndex === 0) {
+          this.sendType = '短信'
+        }
         const tmpList = this.testList.split('\n')
         if (tmpList.length === 1) {
           this.phoneSum = this.rows
@@ -345,85 +354,156 @@ export default {
           this.phoneSum = this.rows + tmpList.length
         }
         console.log(sendWay)
+        var sendFlag = false
         if (sendWay === '真实发送') {
-          if (username === '') {
-            alert('真实发送需要配置发送用户名')
-          } else {
-            const checkBalance = await this.checkBalance()
-            if (checkBalance === true) {
-              var readline = global.require('readline')
-              var fRead = fs.createReadStream(this.file.path)
-              var objReadline = readline.createInterface({
-                input: fRead
-              })
-              var sendList = ''
-              objReadline.on('line', (line) => {
-                sendList += line + ','
-              })
-              objReadline.on('close', () => {
-                var fd = new FormData()
-                var timestamp = ''
-                var sendDay = new Date()
-                var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
-                var time = addZero(sendDay.getHours()) + '' + addZero(sendDay.getMinutes()) + '' + addZero(sendDay.getSeconds())
-                timestamp = date + time
-                var signature = username + password + timestamp
-                console.log(signature)
-                if (this.reserve === true) {
-                  console.log(this.reserveDate + ' ' + this.reserveTime)
-                  fd.append('sendTime', this.reserveDate + ' ' + this.reserveTime)
-                }
-                fd.append('action', 'send')
-                fd.append('timestamp', timestamp)
-                fd.append('sign', md5(signature))
-                fd.append('userid', userid)
-                fd.append('content', this.msgContent)
-                fd.append('mobile', sendList)
-                let config = {
-                  headers: {
-                    'Content-Type': 'multipart/form-data'
-                  }
-                }
-                axios.post(sendUrl, fd, config).then((response) => {
-                  var xmlResult = response['data']
-                  var parseString = require('xml2js').parseString
-                  var message = ''
-                  var remainPoint = 0
-                  var taskID = 0
-                  var sendLog = ''
-                  parseString(xmlResult, function (err, result) {
-                    if (err) {
-                      console.log(err)
-                    }
-                    message = result['returnsms']['message'][0]
-                    remainPoint = result['returnsms']['remainpoint'][0]
-                    taskID = result['returnsms']['taskID'][0]
-                  })
-                  if (this.reserve === true) {
-                    sendLog = '[' + message + ']' + this.timeStamp + '(预计发送时间' + this.reserveDate + ' ' + this.reserveTime + ')-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
-                  } else {
-                    sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
-                  }
-                  fs.appendFileSync('./发送日志.txt', sendLog)
-                }).catch(function (error) {
-                  console.log(error)
+          if (this.sendType === '视信') {
+            if (nameSx === '' || passwordSx === '') {
+              alert('请检查用户名或密码')
+            } else if (useridSx === '' || sendUrl === '') {
+              alert('请检查userid或客户端url')
+            } else {
+              sendFlag = true
+              const checkBalance = await this.checkBalance()
+              if (checkBalance === true) {
+                var fRead = fs.createReadStream(this.file.path)
+                var objReadline = readline.createInterface({
+                  input: fRead
                 })
-                if (tmpList.length > 1) {
-                  var newTestString = tmpList.join(',')
-                  console.log(newTestString)
-                  var testfd = new FormData()
-                  testfd.append('action', 'send')
-                  testfd.append('timestamp', timestamp)
-                  testfd.append('sign', md5(signature))
-                  testfd.append('userid', userid)
-                  testfd.append('content', this.msgContent)
-                  testfd.append('mobile', newTestString)
-                  axios.post(sendUrl, testfd, config).then((response) => {
+                var sendList = ''
+                objReadline.on('line', (line) => {
+                  sendList += line + ','
+                })
+                objReadline.on('close', () => {
+                  var fd = new FormData()
+                  var timestamp = ''
+                  var sendDay = new Date()
+                  var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
+                  var time = addZero(sendDay.getHours()) + '' + addZero(sendDay.getMinutes()) + '' + addZero(sendDay.getSeconds())
+                  timestamp = date + time
+                  var signature = nameSx + passwordSx + timestamp
+                  console.log(signature)
+                  if (this.reserve === true) {
+                    console.log(this.reserveDate + ' ' + this.reserveTime)
+                    fd.append('sendTime', this.reserveDate + ' ' + this.reserveTime)
+                  }
+                  fd.append('action', 'send')
+                  fd.append('timestamp', timestamp)
+                  fd.append('sign', md5(signature))
+                  fd.append('userid', useridSx)
+                  fd.append('content', this.templateCode)
+                  fd.append('mobile', '15054171760, 18764452011')
+                  let config = {
+                    headers: {
+                      'Content-Type': 'multipart/form-data'
+                    }
+                  }
+                  axios.post(sendUrl, fd, config).then((response) => {
+                    console.log(response)
                     var xmlResult = response['data']
                     var parseString = require('xml2js').parseString
                     var message = ''
                     var remainPoint = 0
                     var taskID = 0
+                    var sendLog = ''
+                    parseString(xmlResult, function (err, result) {
+                      if (err) {
+                        console.log(err)
+                      }
+                    })
+                    if (this.reserve === true) {
+                      sendLog = '【视信】[' + message + ']' + this.timeStamp + '(预计发送时间' + this.reserveDate + ' ' + this.reserveTime + ')-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                    } else {
+                      sendLog = '【视信】[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                    }
+                    fs.appendFileSync('./发送日志.txt', sendLog)
+                  }).catch(function (error) {
+                    console.log(error)
+                  })
+                  if (tmpList.length > 1) {
+                    var newTestString = tmpList.join(',')
+                    var testfd = new FormData()
+                    testfd.append('action', 'send')
+                    testfd.append('timestamp', timestamp)
+                    testfd.append('sign', md5(signature))
+                    testfd.append('userid', userid)
+                    testfd.append('content', this.templateCode)
+                    testfd.append('mobile', newTestString)
+                    axios.post(sendUrl, testfd, config).then((response) => {
+                      var xmlResult = response['data']
+                      var parseString = require('xml2js').parseString
+                      var message = ''
+                      var remainPoint = 0
+                      var taskID = 0
+                      parseString(xmlResult, function (err, result) {
+                        if (err) {
+                          console.log(err)
+                        }
+                        message = result['returnsms']['message'][0]
+                        remainPoint = result['returnsms']['remainpoint'][0]
+                        taskID = result['returnsms']['taskID'][0]
+                      })
+                      var sendLog = '【视信】[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送测试号共计：' + tmpList.length + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                      fs.appendFileSync('./发送日志.txt', sendLog)
+                    })
+                  }
+                })
+                this.currentPage = 1
+                this.progress = true
+              } else {
+                alert('余额不足或未连接网络，请检查')
+                return false
+              }
+              this.successRate = Math.floor(Math.random() * 10 + 80) / 100
+              console.log(this.successRate)
+            }
+          } else if (this.sendType === '短信') {
+            if (username === '' || password === '') {
+              alert('请检查用户名或密码')
+            } else if (userid === '' || sendUrl === '') {
+              alert('请检查userid或客户端url')
+            } else {
+              sendFlag = true
+              const checkBalance = await this.checkBalance()
+              if (checkBalance === true) {
+                fRead = fs.createReadStream(this.file.path)
+                objReadline = readline.createInterface({
+                  input: fRead
+                })
+                sendList = ''
+                objReadline.on('line', (line) => {
+                  sendList += line + ','
+                })
+                objReadline.on('close', () => {
+                  var fd = new FormData()
+                  var timestamp = ''
+                  var sendDay = new Date()
+                  var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
+                  var time = addZero(sendDay.getHours()) + '' + addZero(sendDay.getMinutes()) + '' + addZero(sendDay.getSeconds())
+                  timestamp = date + time
+                  var signature = username + password + timestamp
+                  console.log(signature)
+                  if (this.reserve === true) {
+                    console.log(this.reserveDate + ' ' + this.reserveTime)
+                    fd.append('sendTime', this.reserveDate + ' ' + this.reserveTime)
+                  }
+                  fd.append('action', 'send')
+                  fd.append('timestamp', timestamp)
+                  fd.append('sign', md5(signature))
+                  fd.append('userid', userid)
+                  fd.append('content', this.msgContent)
+                  fd.append('mobile', sendList)
+                  let config = {
+                    headers: {
+                      'Content-Type': 'multipart/form-data'
+                    }
+                  }
+                  axios.post(sendUrl, fd, config).then((response) => {
+                    var xmlResult = response['data']
+                    var parseString = require('xml2js').parseString
+                    var message = ''
+                    var remainPoint = 0
+                    var taskID = 0
+                    var sendLog = ''
                     parseString(xmlResult, function (err, result) {
                       if (err) {
                         console.log(err)
@@ -432,21 +512,56 @@ export default {
                       remainPoint = result['returnsms']['remainpoint'][0]
                       taskID = result['returnsms']['taskID'][0]
                     })
-                    var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送测试号共计：' + tmpList.length + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                    if (this.reserve === true) {
+                      sendLog = '[' + message + ']' + this.timeStamp + '(预计发送时间' + this.reserveDate + ' ' + this.reserveTime + ')-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                    } else {
+                      sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送共计：' + this.rows + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                    }
                     fs.appendFileSync('./发送日志.txt', sendLog)
+                  }).catch(function (error) {
+                    console.log(error)
                   })
-                }
-              })
-              this.currentPage = 1
-              this.progress = true
-            } else {
-              alert('余额不足或未连接网络，请检查')
-              return false
+                  if (tmpList.length > 1) {
+                    var newTestString = tmpList.join(',')
+                    console.log(newTestString)
+                    var testfd = new FormData()
+                    testfd.append('action', 'send')
+                    testfd.append('timestamp', timestamp)
+                    testfd.append('sign', md5(signature))
+                    testfd.append('userid', userid)
+                    testfd.append('content', this.msgContent)
+                    testfd.append('mobile', newTestString)
+                    axios.post(sendUrl, testfd, config).then((response) => {
+                      var xmlResult = response['data']
+                      var parseString = require('xml2js').parseString
+                      var message = ''
+                      var remainPoint = 0
+                      var taskID = 0
+                      parseString(xmlResult, function (err, result) {
+                        if (err) {
+                          console.log(err)
+                        }
+                        message = result['returnsms']['message'][0]
+                        remainPoint = result['returnsms']['remainpoint'][0]
+                        taskID = result['returnsms']['taskID'][0]
+                      })
+                      var sendLog = '[' + message + ']' + this.timeStamp + '-客户：' + this.customer + ' 发送测试号共计：' + tmpList.length + '条数据, 余额：' + remainPoint + '[任务ID：' + taskID + ']' + os.EOL
+                      fs.appendFileSync('./发送日志.txt', sendLog)
+                    })
+                  }
+                })
+                this.currentPage = 1
+                this.progress = true
+              } else {
+                alert('余额不足或未连接网络，请检查')
+                return false
+              }
+              this.successRate = Math.floor(Math.random() * 10 + 80) / 100
+              console.log(this.successRate)
             }
-            this.successRate = Math.floor(Math.random() * 10 + 80) / 100
-            console.log(this.successRate)
           }
         } else {
+          sendFlag = true
           try {
             var rate = fs.readFileSync('./num.txt', 'utf8')
           } catch (error) {
@@ -459,12 +574,12 @@ export default {
             this.successRate = rate
           }
         }
-        if (this.sender === undefined) {
+        if (this.sender === undefined && sendFlag === true) {
           var sendDay = new Date()
           var date = sendDay.getFullYear() + '' + addZero((sendDay.getMonth() + 1)) + '' + addZero(sendDay.getDate())
           this.currentPage = 1
           this.progress = true
-          for (var tmp = 1; tmp < 10; tmp++) {
+          for (var tmp = 1; tmp < 100; tmp++) {
             try {
               customerDir = this.customer + date + '_' + tmp
               fs.mkdirSync('./' + customerDir)
@@ -507,7 +622,7 @@ export default {
     getNow: function () {
       const curDay = new Date()
       const curdate = curDay.getFullYear() + '-' + (curDay.getMonth() + 1) + '-' + curDay.getDate()
-      const curtime = curDay.getHours() + ':' + curDay.getMinutes() + ':' + curDay.getSeconds()
+      const curtime = addZero(curDay.getHours()) + ':' + addZero(curDay.getMinutes()) + ':' + addZero(curDay.getSeconds())
       const dateTime = curdate + '  ' + curtime
       this.timeStamp = dateTime
     },
@@ -565,8 +680,10 @@ export default {
       serveSlogan: slogan,
       logo: logo,
       inputing: false,
+      sendType: '短信',
       customer: '',
       msgContent: '',
+      templateCode: '',
       testList: '',
       dataList: [],
       rows: 0,
@@ -626,7 +743,7 @@ export default {
     progressValue: function () {
       if (this.progressValue === 100 && this.progress === true) {
         this.endTime = this.timeStamp
-        var waitTime = this.rows / 56
+        var waitTime = this.rows / 48
         if (waitTime < 600) {
           waitTime = 600
         }
